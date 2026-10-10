@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -27,6 +29,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.DateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -57,6 +60,8 @@ public class MainActivity extends Activity {
     private Uri pendingImage;
     private Double pendingLat;
     private Double pendingLon;
+    private LocalNaturalistAi.Result pendingAiResult;
+    private List<LocalNaturalistAi.Candidate> aiCandidates = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -166,6 +171,8 @@ public class MainActivity extends Activity {
         pendingImage = null;
         pendingLat = null;
         pendingLon = null;
+        pendingAiResult = null;
+        aiCandidates = new ArrayList<>();
         updateLocation();
         openCamera();
     }
@@ -217,7 +224,8 @@ public class MainActivity extends Activity {
                 pendingImage = null;
             }
             updateLocation();
-            editor();
+            if (resultCode == RESULT_OK && pendingImage != null) analyzeImageThenEditor();
+            else editor();
         }
     }
 
@@ -225,6 +233,43 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == REQ_LOCATION && results.length > 0) updateLocation();
+    }
+
+
+    private void analyzeImageThenEditor() {
+        ScrollView sv = scroll();
+        LinearLayout body = column();
+        sv.addView(body);
+        body.setGravity(Gravity.CENTER_HORIZONTAL);
+        body.addView(txt("Analyse locale en cours…", 25, TEXT, true));
+        TextView detail = txt("3 modèles iNaturalist • oiseaux • plantes • insectes\nAucune photo n’est envoyée sur Internet.", 14, MUTED, false);
+        detail.setGravity(Gravity.CENTER);
+        detail.setPadding(0, dp(12), 0, 0);
+        body.addView(detail);
+        setPage(sv);
+
+        new Thread(() -> {
+            try {
+                Bitmap bitmap;
+                try (java.io.InputStream in = getContentResolver().openInputStream(pendingImage)) {
+                    bitmap = BitmapFactory.decodeStream(in);
+                }
+                if (bitmap == null) throw new IllegalStateException("Photo illisible");
+                LocalNaturalistAi.Result result = new LocalNaturalistAi(this).classify(bitmap);
+                runOnUiThread(() -> {
+                    pendingAiResult = result;
+                    aiCandidates = new ArrayList<>(result.candidates);
+                    editor();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    pendingAiResult = null;
+                    aiCandidates = new ArrayList<>();
+                    Toast.makeText(this, "IA locale indisponible : " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    editor();
+                });
+            }
+        }, "FieldCompanion-AI").start();
     }
 
     private void editor() {
@@ -247,16 +292,33 @@ public class MainActivity extends Activity {
         context.addView(txt(locationText(), 14, MUTED, false));
         body.addView(context);
 
+        LinearLayout aiCard = card();
+        aiCard.addView(txt("IA naturaliste locale — alpha", 16, TEXT, true));
+        String aiStatus;
+        if (pendingAiResult == null) {
+            aiStatus = "Aucune hypothèse IA disponible. Tu peux enregistrer l’observation comme non identifiée.";
+        } else {
+            aiStatus = "Fiabilité : " + pendingAiResult.reliability + " • " + pendingAiResult.elapsedMs + " ms • 100 % hors ligne";
+        }
+        aiCard.addView(txt(aiStatus, 13, MUTED, false));
+        LinearLayout.LayoutParams aip = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        aip.setMargins(0, dp(14), 0, 0);
+        body.addView(aiCard, aip);
+
         TextView label = txt("Identification à confirmer", 16, TEXT, true);
         label.setPadding(0, dp(18), 0, dp(7));
         body.addView(label);
 
-        Spinner spinner = new Spinner(this);
-        spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, candidates));
-        spinner.setBackground(round(Color.WHITE, 12));
-        body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)));
+        List<String> choices = new ArrayList<>();
+        choices.add("Non identifié — information insuffisante");
+        for (LocalNaturalistAi.Candidate candidate : aiCandidates) choices.add(candidate.display());
 
-        TextView warning = txt("Aucun modèle IA n’est embarqué. « Non identifié » est volontairement une réponse valide.", 13, MUTED, false);
+        Spinner spinner = new Spinner(this);
+        spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, choices));
+        spinner.setBackground(round(Color.WHITE, 12));
+        body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
+
+        TextView warning = txt("Les scores sont des hypothèses locales à confirmer. Cette première IA couvre les oiseaux, plantes et insectes; elle peut répondre « non identifié ».", 13, MUTED, false);
         warning.setPadding(0, dp(8), 0, dp(14));
         body.addView(warning);
 
@@ -289,19 +351,19 @@ public class MainActivity extends Activity {
         o.imageUri = pendingImage == null ? null : pendingImage.toString();
         o.notes = notes;
 
-        if (index <= 0) {
+        if (index <= 0 || index - 1 >= aiCandidates.size()) {
             o.commonName = "Non identifié";
             o.scientificName = "";
             o.biologicalGroup = "Inconnu";
             o.confidence = 0;
             o.identificationMode = "INSUFFICIENT_INFORMATION";
         } else {
-            String[] parts = candidates[index].split(" — ", 2);
-            o.commonName = parts[0];
-            o.scientificName = parts[1];
-            o.biologicalGroup = group(o.scientificName);
-            o.confidence = 1.0;
-            o.identificationMode = "USER_CONFIRMED";
+            LocalNaturalistAi.Candidate candidate = aiCandidates.get(index - 1);
+            o.commonName = (candidate.commonName == null || candidate.commonName.trim().isEmpty()) ? candidate.scientificName : candidate.commonName;
+            o.scientificName = candidate.scientificName;
+            o.biologicalGroup = candidate.group;
+            o.confidence = candidate.confidence;
+            o.identificationMode = "LOCAL_AI_USER_CONFIRMED";
             o.firstDiscovery = db.countByScientific(o.scientificName) == 0;
         }
 
@@ -436,13 +498,13 @@ public class MainActivity extends Activity {
         sv.addView(body);
         body.addView(txt("À propos", 27, TEXT, true));
         LinearLayout c = card();
-        c.addView(txt("Field Companion 0.2.2-p1", 18, TEXT, true));
+        c.addView(txt("Field Companion 0.3.0-ai1", 18, TEXT, true));
         c.addView(txt("Application locale, sans compte requis. Les observations sont conservées dans SQLite sur l’appareil. La sauvegarde cloud Android automatique est exclue; le transfert volontaire appareil-à-appareil est permis.", 14, MUTED, false));
         body.addView(c);
 
         LinearLayout ai = card();
         ai.addView(txt("État de l’IA", 18, TEXT, true));
-        ai.addView(txt("Aucun modèle biologique n’est embarqué dans cette build. Le principe demeure : mieux vaut « je ne sais pas » qu’une identification fausse présentée avec assurance.", 14, MUTED, false));
+        ai.addView(txt("Trois modèles MobileNet iNaturalist sont embarqués localement : oiseaux, plantes et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.setMargins(0, dp(12), 0, 0);
         body.addView(ai, p);
