@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.FieldCompanion" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/field_green_dark</item>
+        <item name="android:navigationBarColor">@color/field_green_dark</item>
+        <item name="android:colorAccent">@color/field_green</item>
+    </style>
+</resources>
