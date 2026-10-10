@@ -26,10 +26,10 @@ jobs:
           mkdir -p dist/signing-tools
           APK=app/build/outputs/apk/release/app-release-unsigned.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/zipalign" -f -p 4 "$APK" dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk
-          "$BT/zipalign" -c -p 4 dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk
+          "$BT/zipalign" -f -p 4 "$APK" dist/FieldCompanion-0.2.2-p1-preview-release-aligned-unsigned.apk
+          "$BT/zipalign" -c -p 4 dist/FieldCompanion-0.2.2-p1-preview-release-aligned-unsigned.apk
           cp "$BT/lib/apksigner.jar" dist/signing-tools/
-          sha256sum dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
+          sha256sum dist/FieldCompanion-0.2.2-p1-preview-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: FieldCompanion-Aligned-Release-And-Apksigner
