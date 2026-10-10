@@ -200,11 +200,7 @@ public class MainActivity extends Activity {
             Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             i.putExtra(MediaStore.EXTRA_OUTPUT, pendingImage);
             i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            if (i.resolveActivity(getPackageManager()) != null) {
-                startActivityForResult(i, REQ_CAPTURE);
-            } else {
-                editor();
-            }
+            startActivityForResult(i, REQ_CAPTURE);
         } catch (Exception e) {
             pendingImage = null;
             Toast.makeText(this, "Capture indisponible : " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -440,7 +436,7 @@ public class MainActivity extends Activity {
         sv.addView(body);
         body.addView(txt("À propos", 27, TEXT, true));
         LinearLayout c = card();
-        c.addView(txt("Field Companion 0.2.0-p1", 18, TEXT, true));
+        c.addView(txt("Field Companion 0.2.2-p1", 18, TEXT, true));
         c.addView(txt("Application locale, sans compte requis. Les observations sont conservées dans SQLite sur l’appareil. La sauvegarde cloud Android automatique est exclue; le transfert volontaire appareil-à-appareil est permis.", 14, MUTED, false));
         body.addView(c);
 
