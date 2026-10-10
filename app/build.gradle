@@ -10,8 +10,8 @@ android {
         applicationId 'ca.larose.fieldcompanion.p1preview'
         minSdk 28
         targetSdk 36
-        versionCode 3
-        versionName '0.2.1-p1-preview'
+        versionCode 4
+        versionName '0.2.2-p1-preview'
     }
 
     buildTypes {
