@@ -1,9 +1,9 @@
 name: Field Companion Android Build
 
 on:
-  push:
+  pull_request:
     branches:
-      - fieldcompanion-build-20261010
+      - master
   workflow_dispatch:
 
 jobs:
