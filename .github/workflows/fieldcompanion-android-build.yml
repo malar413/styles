@@ -21,19 +21,18 @@ jobs:
           gradle-version: '9.6.0'
       - name: Build unsigned release APK
         run: gradle --no-daemon clean :app:assembleRelease
-      - name: Package unsigned release and Android signing tools
+      - name: Align release and export apksigner
         run: |
           mkdir -p dist/signing-tools
           APK=app/build/outputs/apk/release/app-release-unsigned.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          cp "$APK" dist/FieldCompanion-0.2.1-p1-preview-release-unsigned.apk
-          cp "$BT/zipalign" dist/signing-tools/
+          "$BT/zipalign" -f -p 4 "$APK" dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk
+          "$BT/zipalign" -c -p 4 dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk
           cp "$BT/lib/apksigner.jar" dist/signing-tools/
-          printf '%s\n' "$BT" > dist/signing-tools/build-tools-source.txt
-          sha256sum dist/FieldCompanion-0.2.1-p1-preview-release-unsigned.apk > dist/SHA256SUMS.txt
+          sha256sum dist/FieldCompanion-0.2.1-p1-preview-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: FieldCompanion-Release-And-Signing-Tools
+          name: FieldCompanion-Aligned-Release-And-Apksigner
           path: dist/*
           if-no-files-found: error
           retention-days: 7
