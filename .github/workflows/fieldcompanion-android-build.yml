@@ -87,8 +87,8 @@ jobs:
 
           ls -lh app/src/main/assets/ai
 
-      - name: Build unsigned release APK
-        run: gradle --no-daemon clean :app:assembleRelease
+      - name: Build release and debug APKs
+        run: gradle --no-daemon clean :app:assembleRelease :app:assembleDebug
 
       - name: Align release and export apksigner
         run: |
@@ -101,6 +101,24 @@ jobs:
           cp "$BT/lib/apksigner.jar" dist/signing-tools/
           "$BT/aapt" dump badging dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk | head -20
           sha256sum dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
+
+      - name: Android emulator AI smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euxo pipefail
+            adb logcat -c
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n ca.larose.fieldcompanion.p1preview/ca.larose.fieldcompanion.MainActivity --ez ai_smoke true
+            sleep 25
+            adb logcat -d | tee /tmp/fieldcompanion-logcat.txt
+            grep -q "AI_SMOKE_OK" /tmp/fieldcompanion-logcat.txt
+            ! grep -q "AI_SMOKE_FAIL" /tmp/fieldcompanion-logcat.txt
 
       - uses: actions/upload-artifact@v4
         with:
