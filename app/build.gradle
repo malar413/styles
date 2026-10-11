@@ -10,8 +10,8 @@ android {
         applicationId 'ca.larose.fieldcompanion.p1preview'
         minSdk 28
         targetSdk 36
-        versionCode 5
-        versionName '0.3.0-ai1'
+        versionCode 6
+        versionName '0.4.0-ai2'
     }
 
     buildTypes {
@@ -25,4 +25,5 @@ android {
 
 dependencies {
     implementation 'com.google.ai.edge.litert:litert:1.4.0'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.31.0'
 }
