@@ -85,10 +85,15 @@ public final class LocalNaturalistAi {
         long started = System.currentTimeMillis();
         List<Candidate> all = new ArrayList<>();
 
-        // Expert botanique BioCLIP : similarité cosinus, non comparable aux scores TFLite.
+        // Expert horticole : plantes cultivées / d'intérieur.
+        for (HousePlantExpert.HouseCandidate h : new HousePlantExpert(context).classify(source, 3)) {
+            all.add(new Candidate(h.common, h.scientific, "Plante cultivée", h.probability, false));
+        }
+
+        // Expert botanique BioCLIP : flore générale, similarité cosinus.
         for (FloraExpert.FloraCandidate p : new FloraExpert(context).classify(source, 5)) {
             String common = p.genusLevel ? "Identification prudente au genre" : "";
-            all.add(new Candidate(common, p.scientific, "Plante", p.similarity, true));
+            all.add(new Candidate(common, p.scientific, "Plante sauvage/générale", p.similarity, true));
         }
 
         // Experts oiseaux et insectes : scores propres à leurs classifieurs.
