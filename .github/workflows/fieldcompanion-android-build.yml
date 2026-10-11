@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,18 +20,52 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
-      - name: Download embedded iNaturalist models
+      - name: Download embedded AI models
         run: |
           set -euxo pipefail
           mkdir -p app/src/main/assets/ai
-          BASE=https://raw.githubusercontent.com/google-coral/test_data/master
-          curl -L --fail --retry 3 "$BASE/mobilenet_v2_1.0_224_inat_bird_quant.tflite" -o app/src/main/assets/ai/inat_bird.tflite
-          curl -L --fail --retry 3 "$BASE/mobilenet_v2_1.0_224_inat_plant_quant.tflite" -o app/src/main/assets/ai/inat_plant.tflite
-          curl -L --fail --retry 3 "$BASE/mobilenet_v2_1.0_224_inat_insect_quant.tflite" -o app/src/main/assets/ai/inat_insect.tflite
-          curl -L --fail --retry 3 "$BASE/inat_bird_labels.txt" -o app/src/main/assets/ai/inat_bird_labels.txt
-          curl -L --fail --retry 3 "$BASE/inat_plant_labels.txt" -o app/src/main/assets/ai/inat_plant_labels.txt
-          curl -L --fail --retry 3 "$BASE/inat_insect_labels.txt" -o app/src/main/assets/ai/inat_insect_labels.txt
-          curl -L --fail --retry 3 "$BASE/LICENSE" -o app/src/main/assets/ai/GOOGLE_CORAL_TEST_DATA_LICENSE.txt
+
+          CORAL=https://raw.githubusercontent.com/google-coral/test_data/master
+          curl -L --fail --retry 3 "$CORAL/mobilenet_v2_1.0_224_inat_bird_quant.tflite" -o app/src/main/assets/ai/inat_bird.tflite
+          curl -L --fail --retry 3 "$CORAL/mobilenet_v2_1.0_224_inat_insect_quant.tflite" -o app/src/main/assets/ai/inat_insect.tflite
+          curl -L --fail --retry 3 "$CORAL/inat_bird_labels.txt" -o app/src/main/assets/ai/inat_bird_labels.txt
+          curl -L --fail --retry 3 "$CORAL/inat_insect_labels.txt" -o app/src/main/assets/ai/inat_insect_labels.txt
+          curl -L --fail --retry 3 "$CORAL/LICENSE" -o app/src/main/assets/ai/GOOGLE_CORAL_TEST_DATA_LICENSE.txt
+
+          HF=https://huggingface.co/crazedcodernate/bioclip-2.5-mobile-fastvit/resolve/main
+          curl -L --fail --retry 3 "$HF/flora_student_fp16.onnx?download=true" -o app/src/main/assets/ai/flora_student_fp16.onnx
+          curl -L --fail --retry 3 "$HF/taxa_table.npy?download=true" -o /tmp/flora_taxa_table.npy
+          curl -L --fail --retry 3 "$HF/taxa_labels.json?download=true" -o /tmp/flora_taxa_labels.json
+
+          python3 -m pip install --quiet numpy
+          python3 - <<'PY'
+          import json, numpy as np
+          labels=json.load(open('/tmp/flora_taxa_labels.json',encoding='utf-8'))
+          table=np.load('/tmp/flora_taxa_table.npy').astype('<f4', copy=False)
+          assert table.shape == (len(labels),1024), (table.shape,len(labels))
+          names=[]
+          for row in labels:
+              if isinstance(row,str):
+                  names.append(row)
+              else:
+                  names.append(row.get('scientific') or row.get('name') or row.get('label') or '')
+          assert all(names)
+          open('app/src/main/assets/ai/flora_taxa_labels.txt','w',encoding='utf-8').write('\n'.join(names)+'\n')
+          table.tofile('app/src/main/assets/ai/flora_taxa_table_f32.bin')
+          beg=[x for x in names if x.lower().startswith('begonia ')]
+          print('Flora taxa:',len(names))
+          print('Begonia taxa:',len(beg))
+          print('\n'.join(beg[:30]))
+          assert beg, 'No Begonia taxa found in BioCLIP flora table'
+          PY
+
+          cat > app/src/main/assets/ai/BIOCLIP_MOBILE_ATTRIBUTION.txt <<'EOF'
+          BioCLIP 2.5 Mobile (FastViT student), Nate Hamilton / CrazedCoderNate.
+          Model: https://huggingface.co/crazedcodernate/bioclip-2.5-mobile-fastvit
+          Training code: https://github.com/CrazedCoderNate/bioclip-mobile-distill
+          License: MIT. Teacher BioCLIP 2.5 by the Imageomics Institute, MIT.
+          EOF
+
           ls -lh app/src/main/assets/ai
 
       - name: Build unsigned release APK
@@ -43,15 +77,15 @@ jobs:
           mkdir -p dist/signing-tools
           APK=app/build/outputs/apk/release/app-release-unsigned.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/zipalign" -f -p 4 "$APK" dist/FieldCompanion-0.3.0-ai1-release-aligned-unsigned.apk
-          "$BT/zipalign" -c -v 4 dist/FieldCompanion-0.3.0-ai1-release-aligned-unsigned.apk
+          "$BT/zipalign" -f -p 4 "$APK" dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk
+          "$BT/zipalign" -c -v 4 dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk
           cp "$BT/lib/apksigner.jar" dist/signing-tools/
-          "$BT/aapt" dump badging dist/FieldCompanion-0.3.0-ai1-release-aligned-unsigned.apk | head -20
-          sha256sum dist/FieldCompanion-0.3.0-ai1-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
+          "$BT/aapt" dump badging dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk | head -20
+          sha256sum dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FieldCompanion-0.3.0-AI1-Aligned-Release
+          name: FieldCompanion-0.4.0-AI2-Aligned-Release
           path: dist/*
           if-no-files-found: error
           retention-days: 7
