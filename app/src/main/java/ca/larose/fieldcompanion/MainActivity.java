@@ -15,6 +15,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -68,6 +69,21 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         db = new FieldDatabase(this);
         home();
+        if (getIntent().getBooleanExtra("ai_smoke", false)) runAiSmokeTest();
+    }
+
+
+    private void runAiSmokeTest() {
+        new Thread(() -> {
+            try {
+                Bitmap test = Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888);
+                test.eraseColor(Color.rgb(60, 140, 70));
+                LocalNaturalistAi.Result result = new LocalNaturalistAi(this).classify(test);
+                Log.i("FieldCompanionAI", "AI_SMOKE_OK candidates=" + result.candidates.size() + " elapsedMs=" + result.elapsedMs);
+            } catch (Throwable t) {
+                Log.e("FieldCompanionAI", "AI_SMOKE_FAIL", t);
+            }
+        }, "FieldCompanion-AI-Smoke").start();
     }
 
     private void setPage(View content) {
