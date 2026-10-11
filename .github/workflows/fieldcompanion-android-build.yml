@@ -53,11 +53,30 @@ jobs:
           open('app/src/main/assets/ai/flora_taxa_labels.txt','w',encoding='utf-8').write('\n'.join(names)+'\n')
           table.tofile('app/src/main/assets/ai/flora_taxa_table_f32.bin')
           beg=[x for x in names if x.lower().startswith('begonia ')]
-          print('Flora taxa:',len(names))
-          print('Begonia taxa:',len(beg))
-          print('\n'.join(beg[:30]))
-          assert beg, 'No Begonia taxa found in BioCLIP flora table'
+          print('BioCLIP flora taxa:',len(names))
+          print('BioCLIP Begonia taxa:',len(beg))
           PY
+
+
+          HOUSE=https://huggingface.co/onnx-community/house-plant-image-detection-ONNX/resolve/main
+          curl -L --fail --retry 3 "$HOUSE/onnx/model_q4.onnx?download=true" -o app/src/main/assets/ai/houseplant_q4.onnx
+          curl -L --fail --retry 3 "$HOUSE/config.json?download=true" -o /tmp/houseplant_config.json
+          python3 - <<'PY'
+          import json
+          cfg=json.load(open('/tmp/houseplant_config.json',encoding='utf-8'))
+          m=cfg.get('id2label',{})
+          labels=[m[str(i)] for i in range(len(m))]
+          open('app/src/main/assets/ai/houseplant_labels.txt','w',encoding='utf-8').write('\\n'.join(labels)+'\\n')
+          matches=[x for x in labels if 'begonia' in x.lower()]
+          print('Cultivated-plant classes:',len(labels))
+          print('Begonia classes:',matches)
+          assert matches, 'Cultivated plant expert has no Begonia class'
+          PY
+          cat > app/src/main/assets/ai/HOUSEPLANT_EXPERT_ATTRIBUTION.txt <<'EOF'
+          ONNX community conversion of dima806/house-plant-image-detection.
+          Source: https://huggingface.co/onnx-community/house-plant-image-detection-ONNX
+          License: Apache-2.0.
+          EOF
 
           cat > app/src/main/assets/ai/BIOCLIP_MOBILE_ATTRIBUTION.txt <<'EOF'
           BioCLIP 2.5 Mobile (FastViT student), Nate Hamilton / CrazedCoderNate.
