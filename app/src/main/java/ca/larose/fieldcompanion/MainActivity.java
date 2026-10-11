@@ -242,7 +242,7 @@ public class MainActivity extends Activity {
         sv.addView(body);
         body.setGravity(Gravity.CENTER_HORIZONTAL);
         body.addView(txt("Analyse locale en cours…", 25, TEXT, true));
-        TextView detail = txt("3 modèles iNaturalist • oiseaux • plantes • insectes\nAucune photo n’est envoyée sur Internet.", 14, MUTED, false);
+        TextView detail = txt("BioCLIP Mobile pour les plantes + experts oiseaux/insectes\nAucune photo n’est envoyée sur Internet.", 14, MUTED, false);
         detail.setGravity(Gravity.CENTER);
         detail.setPadding(0, dp(12), 0, 0);
         body.addView(detail);
@@ -298,7 +298,7 @@ public class MainActivity extends Activity {
         if (pendingAiResult == null) {
             aiStatus = "Aucune hypothèse IA disponible. Tu peux enregistrer l’observation comme non identifiée.";
         } else {
-            aiStatus = "Fiabilité : " + pendingAiResult.reliability + " • " + pendingAiResult.elapsedMs + " ms • 100 % hors ligne";
+            aiStatus = pendingAiResult.reliability + " • " + pendingAiResult.elapsedMs + " ms • 100 % hors ligne";
         }
         aiCard.addView(txt(aiStatus, 13, MUTED, false));
         LinearLayout.LayoutParams aip = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -318,7 +318,7 @@ public class MainActivity extends Activity {
         spinner.setBackground(round(Color.WHITE, 12));
         body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
-        TextView warning = txt("Les scores sont des hypothèses locales à confirmer. Cette première IA couvre les oiseaux, plantes et insectes; elle peut répondre « non identifié ».", 13, MUTED, false);
+        TextView warning = txt("Les scores des experts ne sont pas directement comparables. Pour les plantes, « sim. » indique une similarité BioCLIP, pas une probabilité. « Non identifié » reste le choix prudent.", 13, MUTED, false);
         warning.setPadding(0, dp(8), 0, dp(14));
         body.addView(warning);
 
@@ -498,13 +498,13 @@ public class MainActivity extends Activity {
         sv.addView(body);
         body.addView(txt("À propos", 27, TEXT, true));
         LinearLayout c = card();
-        c.addView(txt("Field Companion 0.3.0-ai1", 18, TEXT, true));
+        c.addView(txt("Field Companion 0.4.0-ai2", 18, TEXT, true));
         c.addView(txt("Application locale, sans compte requis. Les observations sont conservées dans SQLite sur l’appareil. La sauvegarde cloud Android automatique est exclue; le transfert volontaire appareil-à-appareil est permis.", 14, MUTED, false));
         body.addView(c);
 
         LinearLayout ai = card();
         ai.addView(txt("État de l’IA", 18, TEXT, true));
-        ai.addView(txt("Trois modèles MobileNet iNaturalist sont embarqués localement : oiseaux, plantes et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
+        ai.addView(txt("Expert botanique BioCLIP 2.5 Mobile (4 271 espèces) avec repli prudent au genre, plus experts locaux oiseaux et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.setMargins(0, dp(12), 0, 0);
         body.addView(ai, p);
