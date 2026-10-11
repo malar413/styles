@@ -66,7 +66,6 @@ public final class LocalNaturalistAi {
     private final Context context;
     private final ModelSpec[] specs = new ModelSpec[] {
             new ModelSpec("ai/inat_bird.tflite", "ai/inat_bird_labels.txt", "Oiseau"),
-            new ModelSpec("ai/inat_plant.tflite", "ai/inat_plant_labels.txt", "Plante"),
             new ModelSpec("ai/inat_insect.tflite", "ai/inat_insect_labels.txt", "Insecte")
     };
 
@@ -82,6 +81,12 @@ public final class LocalNaturalistAi {
             all.addAll(runModel(source, spec, 3));
         }
 
+        for (FloraExpert.FloraCandidate p : new FloraExpert(context).classify(source, 5)) {
+            float normalized = Math.max(0f, Math.min(1f, (p.similarity + 1f) / 2f));
+            String common = p.genusLevel ? "Identification au genre" : "";
+            all.add(new Candidate(common, p.scientific, "Plante", normalized));
+        }
+
         Collections.sort(all, (a, b) -> Float.compare(b.confidence, a.confidence));
         if (all.size() > 6) all = new ArrayList<>(all.subList(0, 6));
 
@@ -89,8 +94,8 @@ public final class LocalNaturalistAi {
         if (!all.isEmpty()) {
             float first = all.get(0).confidence;
             float second = all.size() > 1 ? all.get(1).confidence : 0f;
-            if (first >= 0.60f && (first - second) >= 0.10f) reliability = "ÉLEVÉE";
-            else if (first >= 0.35f) reliability = "MODÉRÉE";
+            if (first >= 0.80f && (first - second) >= 0.08f) reliability = "ÉLEVÉE";
+            else if (first >= 0.62f) reliability = "MODÉRÉE";
         }
 
         return new Result(all, reliability, System.currentTimeMillis() - started);
