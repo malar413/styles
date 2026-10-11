@@ -24,18 +24,26 @@ public final class LocalNaturalistAi {
         public final String scientificName;
         public final String group;
         public final float confidence;
+        public final boolean similarityScore;
 
         Candidate(String commonName, String scientificName, String group, float confidence) {
+            this(commonName, scientificName, group, confidence, false);
+        }
+
+        Candidate(String commonName, String scientificName, String group, float confidence, boolean similarityScore) {
             this.commonName = commonName;
             this.scientificName = scientificName;
             this.group = group;
             this.confidence = confidence;
+            this.similarityScore = similarityScore;
         }
 
         public String display() {
-            String pct = String.format(java.util.Locale.CANADA_FRENCH, "%.0f %%", confidence * 100f);
+            String score = similarityScore
+                    ? String.format(java.util.Locale.CANADA_FRENCH, "sim. %.3f", confidence)
+                    : String.format(java.util.Locale.CANADA_FRENCH, "%.0f %%", confidence * 100f);
             String common = (commonName == null || commonName.trim().isEmpty()) ? scientificName : commonName;
-            return common + " — " + scientificName + "  [" + group + " • " + pct + "]";
+            return common + " — " + scientificName + "  [" + group + " • " + score + "]";
         }
     }
 
@@ -77,28 +85,18 @@ public final class LocalNaturalistAi {
         long started = System.currentTimeMillis();
         List<Candidate> all = new ArrayList<>();
 
+        // Expert botanique BioCLIP : similarité cosinus, non comparable aux scores TFLite.
+        for (FloraExpert.FloraCandidate p : new FloraExpert(context).classify(source, 5)) {
+            String common = p.genusLevel ? "Identification prudente au genre" : "";
+            all.add(new Candidate(common, p.scientific, "Plante", p.similarity, true));
+        }
+
+        // Experts oiseaux et insectes : scores propres à leurs classifieurs.
         for (ModelSpec spec : specs) {
             all.addAll(runModel(source, spec, 3));
         }
 
-        for (FloraExpert.FloraCandidate p : new FloraExpert(context).classify(source, 5)) {
-            float normalized = Math.max(0f, Math.min(1f, (p.similarity + 1f) / 2f));
-            String common = p.genusLevel ? "Identification au genre" : "";
-            all.add(new Candidate(common, p.scientific, "Plante", normalized));
-        }
-
-        Collections.sort(all, (a, b) -> Float.compare(b.confidence, a.confidence));
-        if (all.size() > 6) all = new ArrayList<>(all.subList(0, 6));
-
-        String reliability = "INSUFFISANTE";
-        if (!all.isEmpty()) {
-            float first = all.get(0).confidence;
-            float second = all.size() > 1 ? all.get(1).confidence : 0f;
-            if (first >= 0.80f && (first - second) >= 0.08f) reliability = "ÉLEVÉE";
-            else if (first >= 0.62f) reliability = "MODÉRÉE";
-        }
-
-        return new Result(all, reliability, System.currentTimeMillis() - started);
+        return new Result(all, "EXPERTS SÉPARÉS", System.currentTimeMillis() - started);
     }
 
     private List<Candidate> runModel(Bitmap source, ModelSpec spec, int topK) throws Exception {
