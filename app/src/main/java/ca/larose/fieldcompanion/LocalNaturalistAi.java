@@ -57,7 +57,7 @@ public final class LocalNaturalistAi {
                 score = String.format(java.util.Locale.CANADA_FRENCH, "%.0f %%", confidence * 100f);
             }
             String common = (commonName == null || commonName.trim().isEmpty()) ? scientificName : commonName;
-            return common + " — " + scientificName + "  [" + group + " • " + score + "]";
+            return common + " — " + scientificName + "\n" + group + " • " + score;
         }
     }
 
