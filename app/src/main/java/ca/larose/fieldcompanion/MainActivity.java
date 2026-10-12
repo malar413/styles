@@ -331,10 +331,11 @@ public class MainActivity extends Activity {
 
         Spinner spinner = new Spinner(this);
         spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, choices));
+        spinner.setSelection(0, false);
         spinner.setBackground(round(Color.WHITE, 12));
         body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
-        TextView warning = txt("Les scores des experts ne sont pas directement comparables. Pour les plantes, « sim. » indique une similarité BioCLIP, pas une probabilité. « Non identifié » reste le choix prudent.", 13, MUTED, false);
+        TextView warning = txt("Les experts utilisent des échelles différentes. Pour les plantes cultivées, l’indice multi-vues sert seulement à classer les correspondances; ce n’est pas une probabilité. Pour BioCLIP, « sim. » est une similarité. « Non identifié » reste le choix prudent.", 13, MUTED, false);
         warning.setPadding(0, dp(8), 0, dp(14));
         body.addView(warning);
 
@@ -514,13 +515,13 @@ public class MainActivity extends Activity {
         sv.addView(body);
         body.addView(txt("À propos", 27, TEXT, true));
         LinearLayout c = card();
-        c.addView(txt("Field Companion 0.4.0-ai2", 18, TEXT, true));
+        c.addView(txt("Field Companion 0.4.1-ai2", 18, TEXT, true));
         c.addView(txt("Application locale, sans compte requis. Les observations sont conservées dans SQLite sur l’appareil. La sauvegarde cloud Android automatique est exclue; le transfert volontaire appareil-à-appareil est permis.", 14, MUTED, false));
         body.addView(c);
 
         LinearLayout ai = card();
         ai.addView(txt("État de l’IA", 18, TEXT, true));
-        ai.addView(txt("Expert botanique BioCLIP 2.5 Mobile (4 271 espèces) avec repli prudent au genre, plus experts locaux oiseaux et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
+        ai.addView(txt("AI2.1 : expert horticole multi-vues sans déformation, BioCLIP 2.5 Mobile pour la flore générale, plus experts oiseaux et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.setMargins(0, dp(12), 0, 0);
         body.addView(ai, p);
