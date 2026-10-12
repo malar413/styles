@@ -115,6 +115,17 @@ public class FieldDatabase extends SQLiteOpenHelper {
         }
     }
 
+    public List<Observation> observationsForTaxon(String scientificName) {
+        List<Observation> out = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT id,created_at,common_name,scientific_name,biological_group,confidence,identification_mode,latitude,longitude,image_uri,notes,first_discovery " +
+                        "FROM observations WHERE scientific_name=? ORDER BY created_at DESC",
+                new String[]{scientificName})) {
+            while (c.moveToNext()) out.add(fromCursor(c));
+        }
+        return out;
+    }
+
     private Observation fromCursor(Cursor c) {
         Observation o = new Observation();
         o.id = c.getLong(0);
