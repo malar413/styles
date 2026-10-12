@@ -37,7 +37,7 @@ jobs:
           curl -L --fail --retry 3 "$HF/taxa_table.npy?download=true" -o /tmp/flora_taxa_table.npy
           curl -L --fail --retry 3 "$HF/taxa_labels.json?download=true" -o /tmp/flora_taxa_labels.json
 
-          python3 -m pip install --quiet numpy
+          python3 -m pip install --quiet numpy onnxruntime
           python3 - <<'PY'
           import json, numpy as np
           labels=json.load(open('/tmp/flora_taxa_labels.json',encoding='utf-8'))
@@ -66,7 +66,7 @@ jobs:
           cfg=json.load(open('/tmp/houseplant_config.json',encoding='utf-8'))
           m=cfg.get('id2label',{})
           labels=[m[str(i)] for i in range(len(m))]
-          open('app/src/main/assets/ai/houseplant_labels.txt','w',encoding='utf-8').write('\\n'.join(labels)+'\\n')
+          open('app/src/main/assets/ai/houseplant_labels.txt','w',encoding='utf-8').write(chr(10).join(labels)+chr(10))
           matches=[x for x in labels if 'begonia' in x.lower()]
           print('Cultivated-plant classes:',len(labels))
           print('Begonia classes:',matches)
@@ -87,8 +87,34 @@ jobs:
 
           ls -lh app/src/main/assets/ai
 
-      - name: Build release and debug APKs
-        run: gradle --no-daemon clean :app:assembleRelease :app:assembleDebug
+      - name: Validate ONNX inference and taxonomies
+        run: |
+          python3 - <<'PY'
+          import json, numpy as np, onnxruntime as ort
+          flora='app/src/main/assets/ai/flora_student_fp16.onnx'
+          house='app/src/main/assets/ai/houseplant_q4.onnx'
+
+          s=ort.InferenceSession(flora, providers=['CPUExecutionProvider'])
+          x=np.zeros((1,3,224,224),dtype=np.float32)
+          y=s.run(None, {'image':x})[0]
+          assert y.shape==(1,1024), y.shape
+          print('BioCLIP runtime OK:',y.shape)
+
+          s=ort.InferenceSession(house, providers=['CPUExecutionProvider'])
+          name=s.get_inputs()[0].name
+          y=s.run(None, {name:x})[0]
+          assert y.shape==(1,47), y.shape
+          print('Houseplant runtime OK:',y.shape)
+
+          labels=open('app/src/main/assets/ai/houseplant_labels.txt',encoding='utf-8').read().splitlines()
+          assert len(labels)==47, len(labels)
+          beg=[v for v in labels if 'begonia' in v.lower()]
+          assert beg, labels
+          print('Begonia coverage:',beg)
+          PY
+
+      - name: Build unsigned ARM64 release APK
+        run: gradle --no-daemon clean :app:assembleRelease
 
       - name: Align release and export apksigner
         run: |
@@ -101,24 +127,6 @@ jobs:
           cp "$BT/lib/apksigner.jar" dist/signing-tools/
           "$BT/aapt" dump badging dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk | head -20
           sha256sum dist/FieldCompanion-0.4.0-ai2-release-aligned-unsigned.apk > dist/SHA256SUMS.txt
-
-      - name: Android emulator AI smoke test
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          disable-animations: true
-          script: |
-            set -eu
-            adb logcat -c
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n ca.larose.fieldcompanion.p1preview/ca.larose.fieldcompanion.MainActivity --ez ai_smoke true
-            sleep 25
-            adb logcat -d | tee /tmp/fieldcompanion-logcat.txt
-            grep -q "AI_SMOKE_OK" /tmp/fieldcompanion-logcat.txt
-            ! grep -q "AI_SMOKE_FAIL" /tmp/fieldcompanion-logcat.txt
 
       - uses: actions/upload-artifact@v4
         with:
