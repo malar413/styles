@@ -330,10 +330,10 @@ public class MainActivity extends Activity {
         for (LocalNaturalistAi.Candidate candidate : aiCandidates) choices.add(candidate.display());
 
         Spinner spinner = new Spinner(this);
-        spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, choices));
+        spinner.setAdapter(identificationAdapter(choices));
         spinner.setSelection(0, false);
         spinner.setBackground(round(Color.WHITE, 12));
-        body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
+        body.addView(spinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(92)));
 
         TextView warning = txt("Les experts utilisent des échelles différentes. Pour les plantes cultivées, l’indice multi-vues sert seulement à classer les correspondances; ce n’est pas une probabilité. Pour BioCLIP, « sim. » est une similarité. « Non identifié » reste le choix prudent.", 13, MUTED, false);
         warning.setPadding(0, dp(8), 0, dp(14));
@@ -453,32 +453,77 @@ public class MainActivity extends Activity {
     }
 
     private void taxon(String scientific) {
-        FieldDatabase.Observation o = db.latestForTaxon(scientific);
-        if (o == null) { collection(); return; }
+        List<FieldDatabase.Observation> history = db.observationsForTaxon(scientific);
+        if (history.isEmpty()) { collection(); return; }
+        FieldDatabase.Observation latest = history.get(0);
+
         ScrollView sv = scroll();
         LinearLayout body = column();
         sv.addView(body);
-        body.addView(txt(o.commonName, 28, TEXT, true));
-        TextView s = txt(o.scientificName, 18, GREEN, false);
+
+        body.addView(txt(latest.commonName, 28, TEXT, true));
+        TextView s = txt(latest.scientificName, 18, GREEN, false);
         s.setTypeface(Typeface.create(Typeface.SERIF, Typeface.ITALIC));
         body.addView(s);
-        body.addView(txt(o.biologicalGroup + " • " + db.countByScientific(scientific) + " observation(s)", 14, MUTED, false));
+        body.addView(txt(latest.biologicalGroup + " • " + history.size() + " observation(s)", 14, MUTED, false));
 
-        if (o.imageUri != null) {
-            ImageView image = new ImageView(this);
-            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            try { image.setImageURI(Uri.parse(o.imageUri)); } catch (Exception ignored) {}
-            LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260));
-            ip.setMargins(0, dp(14), 0, dp(14));
-            body.addView(image, ip);
+        int gpsCount = 0;
+        for (FieldDatabase.Observation item : history) {
+            if (item.latitude != null && item.longitude != null) gpsCount++;
+        }
+        LinearLayout geo = card();
+        geo.addView(txt("Répartition observée", 16, TEXT, true));
+        geo.addView(txt(gpsCount + " observation(s) avec position GPS", 14, MUTED, false));
+        double extentKm = geographicExtentKm(history);
+        if (!Double.isNaN(extentKm)) {
+            String extentText = extentKm < 1.0
+                    ? String.format(Locale.CANADA_FRENCH, "Étendue approx. : %.0f m", extentKm * 1000.0)
+                    : String.format(Locale.CANADA_FRENCH, "Étendue approx. : %.1f km", extentKm);
+            geo.addView(txt(extentText + " entre les points les plus éloignés", 14, GREEN_DARK, true));
+        } else if (gpsCount == 1) {
+            geo.addView(txt("Un seul point GPS : l’étendue sera calculée dès une deuxième localisation.", 13, MUTED, false));
+        }
+        LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        gp.setMargins(0, dp(14), 0, dp(14));
+        body.addView(geo, gp);
+
+        body.addView(txt("Historique des observations", 20, TEXT, true));
+
+        for (int i = 0; i < history.size(); i++) {
+            FieldDatabase.Observation o = history.get(i);
+            LinearLayout card = card();
+
+            String when = DateFormat.getDateTimeInstance(
+                    DateFormat.MEDIUM, DateFormat.SHORT, Locale.CANADA_FRENCH)
+                    .format(new Date(o.createdAt));
+            card.addView(txt(when, 15, TEXT, true));
+            card.addView(txt(formatGps(o), 13, MUTED, false));
+
+            if (o.firstDiscovery) {
+                card.addView(txt("★ Première découverte", 13, Color.rgb(160, 105, 20), true));
+            }
+
+            if (o.imageUri != null) {
+                ImageView image = new ImageView(this);
+                image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                try { image.setImageURI(Uri.parse(o.imageUri)); } catch (Exception ignored) {}
+                LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(180));
+                ip.setMargins(0, dp(10), 0, dp(8));
+                card.addView(image, ip);
+            }
+
+            if (o.notes != null && !o.notes.trim().isEmpty()) {
+                TextView notes = txt(o.notes, 14, TEXT, false);
+                notes.setPadding(0, dp(4), 0, 0);
+                card.addView(notes);
+            }
+
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            cp.setMargins(0, dp(10), 0, 0);
+            body.addView(card, cp);
         }
 
-        LinearLayout c = card();
-        c.addView(txt("Dernière observation", 16, TEXT, true));
-        c.addView(txt(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.CANADA_FRENCH).format(new Date(o.createdAt)), 14, MUTED, false));
-        c.addView(txt(o.latitude == null ? "Position non enregistrée" : String.format(Locale.CANADA_FRENCH, "%.5f, %.5f", o.latitude, o.longitude), 14, MUTED, false));
-        if (o.notes != null && !o.notes.trim().isEmpty()) c.addView(txt(o.notes, 14, TEXT, false));
-        body.addView(c);
         setPage(sv);
     }
 
@@ -498,8 +543,14 @@ public class MainActivity extends Activity {
             for (FieldDatabase.Observation o : list) {
                 LinearLayout c = card();
                 c.addView(txt(o.commonName, 17, TEXT, true));
+                if (o.scientificName != null && !o.scientificName.isEmpty()) {
+                    TextView sci = txt(o.scientificName, 13, GREEN, false);
+                    sci.setTypeface(Typeface.create(Typeface.SERIF, Typeface.ITALIC));
+                    c.addView(sci);
+                }
                 String meta = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.CANADA_FRENCH).format(new Date(o.createdAt));
                 c.addView(txt(meta, 13, MUTED, false));
+                c.addView(txt(formatGps(o), 13, MUTED, false));
                 if (o.firstDiscovery) c.addView(txt("★ Première découverte", 13, Color.rgb(160, 105, 20), true));
                 LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 p.setMargins(0, 0, 0, dp(10));
@@ -509,19 +560,83 @@ public class MainActivity extends Activity {
         setPage(sv);
     }
 
+    private String formatGps(FieldDatabase.Observation o) {
+        if (o.latitude == null || o.longitude == null) return "GPS : position non enregistrée";
+        return String.format(Locale.CANADA_FRENCH, "GPS : %.5f, %.5f", o.latitude, o.longitude);
+    }
+
+    private double geographicExtentKm(List<FieldDatabase.Observation> history) {
+        List<FieldDatabase.Observation> geo = new ArrayList<>();
+        for (FieldDatabase.Observation o : history) {
+            if (o.latitude != null && o.longitude != null) geo.add(o);
+        }
+        if (geo.size() < 2) return Double.NaN;
+
+        double max = 0.0;
+        for (int i = 0; i < geo.size(); i++) {
+            for (int j = i + 1; j < geo.size(); j++) {
+                max = Math.max(max, distanceKm(
+                        geo.get(i).latitude, geo.get(i).longitude,
+                        geo.get(j).latitude, geo.get(j).longitude));
+            }
+        }
+        return max;
+    }
+
+    private double distanceKm(double lat1, double lon1, double lat2, double lon2) {
+        final double earthKm = 6371.0088;
+        double p1 = Math.toRadians(lat1);
+        double p2 = Math.toRadians(lat2);
+        double dp = Math.toRadians(lat2 - lat1);
+        double dl = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dp / 2.0) * Math.sin(dp / 2.0)
+                + Math.cos(p1) * Math.cos(p2)
+                * Math.sin(dl / 2.0) * Math.sin(dl / 2.0);
+        return 2.0 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+    }
+
+    private ArrayAdapter<String> identificationAdapter(List<String> choices) {
+        return new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, choices) {
+            private TextView makeView(int position, boolean dropdown) {
+                TextView t = new TextView(MainActivity.this);
+                t.setText(getItem(position));
+                t.setTextSize(dropdown ? 14 : 15);
+                t.setTextColor(TEXT);
+                t.setGravity(Gravity.CENTER_VERTICAL);
+                t.setSingleLine(false);
+                t.setMaxLines(4);
+                t.setPadding(dp(12), dp(9), dp(12), dp(9));
+                return t;
+            }
+
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                return makeView(position, false);
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                TextView t = makeView(position, true);
+                t.setMinHeight(dp(64));
+                t.setBackgroundColor(Color.WHITE);
+                return t;
+            }
+        };
+    }
+
     private void about() {
         ScrollView sv = scroll();
         LinearLayout body = column();
         sv.addView(body);
         body.addView(txt("À propos", 27, TEXT, true));
         LinearLayout c = card();
-        c.addView(txt("Field Companion 0.4.1-ai2", 18, TEXT, true));
+        c.addView(txt("Field Companion 0.4.2-ai2", 18, TEXT, true));
         c.addView(txt("Application locale, sans compte requis. Les observations sont conservées dans SQLite sur l’appareil. La sauvegarde cloud Android automatique est exclue; le transfert volontaire appareil-à-appareil est permis.", 14, MUTED, false));
         body.addView(c);
 
         LinearLayout ai = card();
         ai.addView(txt("État de l’IA", 18, TEXT, true));
-        ai.addView(txt("AI2.1 : expert horticole multi-vues sans déformation, BioCLIP 2.5 Mobile pour la flore générale, plus experts oiseaux et insectes. Les hypothèses restent à confirmer et « non identifié » demeure toujours possible.", 14, MUTED, false));
+        ai.addView(txt("AI2.2 : expert horticole multi-vues sans déformation, BioCLIP 2.5 Mobile pour la flore générale, plus experts oiseaux et insectes. L’historique conserve date/heure, GPS, photo et notes pour chaque observation confirmée.", 14, MUTED, false));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.setMargins(0, dp(12), 0, 0);
         body.addView(ai, p);
