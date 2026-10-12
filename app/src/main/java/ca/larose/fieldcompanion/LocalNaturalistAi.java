@@ -25,23 +25,37 @@ public final class LocalNaturalistAi {
         public final String group;
         public final float confidence;
         public final boolean similarityScore;
+        public final boolean matchIndex;
 
         Candidate(String commonName, String scientificName, String group, float confidence) {
-            this(commonName, scientificName, group, confidence, false);
+            this(commonName, scientificName, group, confidence, false, false);
         }
 
         Candidate(String commonName, String scientificName, String group, float confidence, boolean similarityScore) {
+            this(commonName, scientificName, group, confidence, similarityScore, false);
+        }
+
+        Candidate(String commonName, String scientificName, String group, float confidence, boolean similarityScore, boolean matchIndex) {
             this.commonName = commonName;
             this.scientificName = scientificName;
             this.group = group;
             this.confidence = confidence;
             this.similarityScore = similarityScore;
+            this.matchIndex = matchIndex;
         }
 
         public String display() {
-            String score = similarityScore
-                    ? String.format(java.util.Locale.CANADA_FRENCH, "sim. %.3f", confidence)
-                    : String.format(java.util.Locale.CANADA_FRENCH, "%.0f %%", confidence * 100f);
+            String score;
+            if (similarityScore) {
+                score = String.format(java.util.Locale.CANADA_FRENCH, "sim. %.3f", confidence);
+            } else if (matchIndex) {
+                String level = confidence >= 0.45f ? "correspondance forte"
+                        : confidence >= 0.22f ? "correspondance moyenne"
+                        : "correspondance faible";
+                score = level + String.format(java.util.Locale.CANADA_FRENCH, " • indice %.0f", confidence * 100f);
+            } else {
+                score = String.format(java.util.Locale.CANADA_FRENCH, "%.0f %%", confidence * 100f);
+            }
             String common = (commonName == null || commonName.trim().isEmpty()) ? scientificName : commonName;
             return common + " — " + scientificName + "  [" + group + " • " + score + "]";
         }
@@ -87,7 +101,7 @@ public final class LocalNaturalistAi {
 
         // Expert horticole : plantes cultivées / d'intérieur.
         for (HousePlantExpert.HouseCandidate h : new HousePlantExpert(context).classify(source, 3)) {
-            all.add(new Candidate(h.common, h.scientific, "Plante cultivée", h.probability, false));
+            all.add(new Candidate(h.common, h.scientific, "Plante cultivée", h.matchIndex, false, true));
         }
 
         // Expert botanique BioCLIP : flore générale, similarité cosinus.
